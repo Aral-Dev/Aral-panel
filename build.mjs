@@ -180,9 +180,11 @@ const skylineSvg = read(P('assets/skyline.svg'))
 const skylineHtml = `<div class="figure-frame">${skylineSvg}</div>`;
 const sealSvg = read(P('assets/seal.svg')).replace(/\n\s+/g, '');
 
-// ARAL emblem (obsidian & gold summit) — embedded as data URIs
+// ARAL emblems (obsidian & gold summit for dark, graphite sketch for light) — embedded as data URIs
 const logoMainData = `data:image/webp;base64,${fs.readFileSync(P('src/ui/assets/aral-logo-main.webp')).toString('base64')}`;
+const logoMainLightData = `data:image/webp;base64,${fs.readFileSync(P('src/ui/assets/aral-logo-main-light.webp')).toString('base64')}`;
 const logoBadgeData = `data:image/webp;base64,${fs.readFileSync(P('src/ui/assets/aral-logo-badge.webp')).toString('base64')}`;
+const logoBadgeLightData = `data:image/webp;base64,${fs.readFileSync(P('src/ui/assets/aral-logo-badge-light.webp')).toString('base64')}`;
 
 let rawStyle = read(P('src/ui/style.css'));
 for (const [k, v] of Object.entries(fontVars)) {
@@ -206,6 +208,7 @@ const fullPreviewHtml = indexTemplate
   .replace('{{SEAL_SMALL}}', () => sealSvg)
   .replace('{{CONFIG}}', () => JSON.stringify({ host: config.host, tunnelPath: config.tunnelPath }))
   .replace('{{LOGO_MAIN}}', () => logoMainData)
+  .replace('{{LOGO_MAIN_LIGHT}}', () => logoMainLightData)
   .replace('{{STYLE}}', () => minCss)
   .replace('{{SKYLINE}}', () => skylineHtml)
   .replace('{{QR}}', () => minQr)
@@ -220,6 +223,7 @@ const shellTemplate = indexTemplate
   .replace('{{SEAL_SMALL}}', () => sealSvg)
   .replace('{{CONFIG}}', () => JSON.stringify({ host: config.host, tunnelPath: config.tunnelPath }))
   .replace('{{LOGO_MAIN}}', () => logoMainData)
+  .replace('{{LOGO_MAIN_LIGHT}}', () => logoMainLightData)
   .replace('{{STYLE}}', () => '/*__NL_STYLE__*/')
   .replace('{{SKYLINE}}', () => '/*__NL_SKY__*/')
   .replace('{{QR}}', () => '/*__NL_QR__*/')
@@ -231,6 +235,7 @@ const rawBodyInner = bodyMatch
   ? bodyMatch[1]
       .replace('{{SEAL_SMALL}}', () => sealSvg)
       .replace('{{LOGO_MAIN}}', () => logoMainData)
+      .replace('{{LOGO_MAIN_LIGHT}}', () => logoMainLightData)
       .replace('{{SKYLINE}}', () => skylineHtml)
       .replace(/<script>[\s\S]*<\/script>/i, '')
   : '';
@@ -518,6 +523,7 @@ async function compileStealthWorker(includeShell, bannerComment) {
     qr: minQr,
     skyline: skylineHtml,
     logo: logoBadgeData,
+    logoLight: logoBadgeLightData,
     shell: includeShell ? shellTemplate : '',
   });
   const gzippedArchive = gzipSync(Buffer.from(archiveJson, 'utf8'), { level: 9 });
@@ -549,7 +555,7 @@ async function unpack() {
 
 export async function getInlineAssets() {
   const a = await unpack();
-  return { style: a.style || '', qr: a.qr || '', skyline: a.skyline || '', logo: a.logo || '' };
+  return { style: a.style || '', qr: a.qr || '', skyline: a.skyline || '', logo: a.logo || '', logoLight: a.logoLight || '' };
 }
 
 export async function getPanelHtml() {

@@ -99,14 +99,14 @@ export function computeQuickUserNodeMeta(user, settings, requestHost) {
   const encPath = encodeURIComponent(wsPath);
   const fp = encodeURIComponent(settings.fingerprint || 'chrome');
   const alpn = encodeURIComponent(settings.alpn || 'http/1.1');
-  const showPort = allTlsPorts.length > 1 || firstPort !== 443;
 
-  const vName = `VLESS · ${hostOnly}${showPort ? ':' + firstPort : ''}`;
+  // Uniform watermark remark: protocol + ARAL brand only — no host, port, flag or extra metadata.
+  const vName = 'Aral | VLESS';
   const primaryVless = settings.enableVless
     ? `vless://${user.uuid}@${hostOnly}:${firstPort}?encryption=none&security=tls&sni=${hostOnly}&fp=${fp}&alpn=${alpn}&type=ws&host=${hostOnly}&path=${encPath}#${encodeURIComponent(vName)}`
     : '';
 
-  const tName = `Trojan · ${hostOnly}${showPort ? ':' + firstPort : ''}`;
+  const tName = 'Aral | Trojan';
   const primaryTrojan = settings.enableTrojan
     ? `trojan://${encodeURIComponent(user.trojanPassword)}@${hostOnly}:${firstPort}?security=tls&sni=${hostOnly}&fp=${fp}&alpn=${alpn}&type=ws&host=${hostOnly}&path=${encPath}#${encodeURIComponent(tName)}`
     : '';
@@ -203,15 +203,12 @@ export function buildNodeDescriptors(user, settings, requestHost) {
 
   const nodes = [];
   let idx = 1;
-  const alwaysShowTlsPort = allTlsPorts.length > 1;
 
   for (const t of targets) {
     for (const port of t.ports) {
-      const portSuffix = !t.tls || alwaysShowTlsPort || port !== 443 ? `:${port}` : '';
-      const protoMid = t.tls ? '' : 'HTTP · ';
-
+      // Uniform watermark remark: only the protocol next to the ARAL brand — zero extra metadata.
       if (settings.enableVless) {
-        const name = `VLESS · ${protoMid}${t.tagLabel}${portSuffix}`;
+        const name = 'Aral | VLESS';
         nodes.push({
           index: idx++,
           name,
@@ -232,7 +229,7 @@ export function buildNodeDescriptors(user, settings, requestHost) {
       }
 
       if (settings.enableTrojan && t.tls) {
-        const name = `Trojan · ${t.tagLabel}${portSuffix}`;
+        const name = 'Aral | Trojan';
         nodes.push({
           index: idx++,
           name,
@@ -348,7 +345,7 @@ export function buildXrayConfigs(userView, settings, requestHost) {
 
   return nodes.map((node) => {
     const useFrag = Boolean(settings.enableFragment);
-    const remarks = useFrag ? `${node.name} [Fragment]` : node.name;
+    const remarks = node.name;
 
     const proxyOutbound = {
       tag: 'proxy',
@@ -513,11 +510,20 @@ export function buildSingboxConfig(userView, settings, requestHost) {
   const remoteDoH = resolveRemoteDoHUrl(userView, settings, requestHost);
 
   const nodeTags = [];
+  // Sing-box requires unique outbound tags; keep the clean watermark and add the minimal
+  // numeric suffix ONLY when the same remark repeats (structural need, not extra metadata).
+  const tagSeq = new Map();
+  const uniqueTag = (base) => {
+    const k = (tagSeq.get(base) || 0) + 1;
+    tagSeq.set(base, k);
+    return k === 1 ? base : `${base} · ${k}`;
+  };
   const nodeOutbounds = nodes.map((n) => {
-    nodeTags.push(n.name);
+    const tag = uniqueTag(n.name);
+    nodeTags.push(tag);
     const out = {
       type: n.protocol,
-      tag: n.name,
+      tag,
       server: n.address,
       server_port: n.port,
       transport: {
@@ -636,9 +642,16 @@ export function buildClashYaml(userView, settings, requestHost) {
   const nodes = buildNodeDescriptors(userView, settings, requestHost);
   const proxyLines = [];
   const names = [];
+  // Clash/Mihomo requires unique proxy names; minimal numeric suffix only on repeats.
+  const nameSeq = new Map();
+  const uniqueName = (base) => {
+    const k = (nameSeq.get(base) || 0) + 1;
+    nameSeq.set(base, k);
+    return k === 1 ? base : `${base} · ${k}`;
+  };
 
   for (const n of nodes) {
-    const safeName = n.name.replace(/"/g, "'");
+    const safeName = uniqueName(n.name.replace(/"/g, "'"));
     names.push(`      - "${safeName}"`);
     if (n.protocol === 'vless') {
       proxyLines.push(
@@ -1008,7 +1021,8 @@ export function renderSubscriberPressPass(userView, settings, requestHost, asset
       </div>
     </div>
     <h1 class="mast-title">
-      <img class="mast-logo mast-logo-sm" src="${assets.logo || ''}" alt="ARAL" width="340" height="340">
+      <img class="mast-logo mast-logo-sm logo-dark" src="${assets.logo || ''}" alt="ARAL" width="720" height="405">
+      <img class="mast-logo mast-logo-sm logo-light" src="${assets.logoLight || ''}" alt="ARAL" width="720" height="405">
     </h1>
     <div class="subline">
       <span class="fa">کارتِ عبورِ مشترک: ${esc(userView.name)}</span>

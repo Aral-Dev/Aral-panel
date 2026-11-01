@@ -207,21 +207,21 @@ async function startMockCloudflareAndGitHubServer(stateRecorder) {
     if (u.pathname === '/gh/repos/AralDev/Aral/releases/latest') {
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({
-        tag_name: 'v2.6.0',
-        html_url: 'https://github.com/AralDev/Aral/releases/tag/v2.6.0',
+        tag_name: 'v3.1.0',
+        html_url: 'https://github.com/AralDev/Aral/releases/tag/v3.1.0',
         body: '- Official test release from AralDev/Aral',
         published_at: '2026-10-31T12:00:00Z',
         assets: [
           {
             name: 'worker-single-file.js',
-            browser_download_url: `${MOCK_BASE}/ghraw/AralDev/Aral/v2.6.0/worker-single-file.js`,
+            browser_download_url: `${MOCK_BASE}/ghraw/AralDev/Aral/v3.1.0/worker-single-file.js`,
           },
         ],
       }));
     }
     if (u.pathname === '/ghraw/AralDev/Aral/main/package.json') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      return res.end(JSON.stringify({ name: 'aral', version: '2.6.0' }));
+      return res.end(JSON.stringify({ name: 'aral', version: '3.1.0' }));
     }
     if (u.pathname.endsWith('/worker-single-file.js')) {
       res.writeHead(200, { 'content-type': 'application/javascript' });
@@ -474,14 +474,22 @@ async function main() {
     assert.equal(await sponsor.locator('.sponsor-float-icon use').getAttribute('href'), '#i-telegram');
     const iconAnimation = await sponsor.locator('.sponsor-float-icon').evaluate((el) => getComputedStyle(el).animationName);
     assert(iconAnimation.includes('sponsor-wing'), 'Floating Telegram icon must have motion');
-    const lightBackground = await sponsor.evaluate((el) => getComputedStyle(el).backgroundColor);
+    // The panel boots in dark by default; force LIGHT first to guarantee a real theme delta.
+    // NOTE: the badge has a .2s background transition, so read the color with the transition
+    // temporarily disabled — headless frames can stall and return a stale mid-transition color.
+    const cascadeBg = () => sponsor.evaluate((el) => {
+      el.style.transition = 'none';
+      const bg = getComputedStyle(el).backgroundColor;
+      el.style.transition = '';
+      return bg;
+    });
+    await page.click('.t-pick[data-th="light"]');
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light', undefined, { timeout: 8000 });
+    const lightBackgroundForced = await cascadeBg();
     await page.click('.t-pick[data-th="dark"]');
-    await page.waitForFunction((previous) => {
-      const badge = document.getElementById('sponsor-telegram');
-      return document.documentElement.dataset.theme === 'dark' && getComputedStyle(badge).backgroundColor !== previous;
-    }, lightBackground);
-    const darkBackground = await sponsor.evaluate((el) => getComputedStyle(el).backgroundColor);
-    assert.notEqual(lightBackground, darkBackground, 'Floating sponsor must adapt to theme');
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark', undefined, { timeout: 8000 });
+    const darkBackground = await cascadeBg();
+    assert.notEqual(lightBackgroundForced, darkBackground, 'Floating sponsor must adapt to theme');
     await page.setViewportSize({ width: 390, height: 844 });
     const sponsorBox = await sponsor.boundingBox();
     assert(sponsorBox.x >= 0 && sponsorBox.x + sponsorBox.width <= 390, 'Floating sponsor must fit mobile viewport');
@@ -651,7 +659,10 @@ async function main() {
     await sleep(300);
     const rawFlagged = (await (await fetch(`${BASE}/sub/${user.subToken}?format=raw`)).text()).trim().split(String.fromCharCode(10));
     const namedNodes = rawFlagged.map((line) => decodeURIComponent(line.split('#')[1] || ''));
-    assert(namedNodes.some((name) => name.includes('🇺🇸 US ·') && /^VLESS/.test(name)), 'Only generated node names must have an ISO-2 code and matching flag');
+    // Uniform watermark remark: ONLY protocol + Aral brand — no flags, hosts, ports or extra metadata.
+    const realNodes = namedNodes.filter((n) => /^Aral \| (VLESS|Trojan)$/.test(n.trim()));
+    assert(realNodes.length >= 2, 'Generated node remarks must use the uniform "Aral | VLESS / Aral | Trojan" watermark');
+    assert(namedNodes.every((n) => !/\p{Regional_Indicator}{2}/u.test(n)), 'Node remarks must stay free of GeoIP flags and any extra metadata');
     assert(!rawFlagged.some((line) => line.split('?')[0].includes('🇺🇸')), 'Flag must not be placed in raw endpoint addresses');
 
     await page.click('.tab-btn[data-tab="sub"]');
@@ -667,15 +678,15 @@ async function main() {
     await subPage.click('#sub-free-ok');
     const passAudit = await subPage.evaluate(() => {
       const flags = (document.documentElement.innerText || '').match(/\p{Regional_Indicator}{2}/gu) || [];
-      const nodeFlags = Array.from(document.querySelectorAll('#s-nodes .node-title strong'))
-        .flatMap((el) => el.textContent.match(/\p{Regional_Indicator}{2}/gu) || []);
+      const nodeNames = Array.from(document.querySelectorAll('#s-nodes .node-title strong')).map((el) => el.textContent.trim());
       const nonNodeText = (document.documentElement.innerText || '').replace(/\p{Regional_Indicator}{2}/gu, '');
-      return { flags: flags.length, nodeFlags: nodeFlags.length, otherEmoji: (nonNodeText.match(/\p{Extended_Pictographic}/gu) || []).length };
+      return { flags: flags.length, nodeNames, otherEmoji: (nonNodeText.match(/\p{Extended_Pictographic}/gu) || []).length };
     });
-    assert(passAudit.flags > 0 && passAudit.flags === passAudit.nodeFlags, 'All flags on subscriber page must appear in node names only');
+    assert.equal(passAudit.flags, 0, 'Uniform Aral remarks must keep the Press Pass completely flag-free');
+    assert(passAudit.nodeNames.length > 0 && passAudit.nodeNames.every((n) => /^Aral \| (VLESS|Trojan)$/.test(n)), 'Press Pass node list must show only the Aral | PROTOCOL watermark');
     assert.equal(passAudit.otherEmoji, 0, 'Subscriber Press Pass must remain otherwise emoji-free');
     await subPage.close();
-    console.log(`✓ [12/15] Official 22 CIDRs + selectable sampling, no false raw-IP health, GeoIP flag in node names, Normal URI & 5-OS official directory`);
+    console.log(`✓ [12/15] Official 22 CIDRs + selectable sampling, uniform Aral | PROTOCOL watermark remarks, Normal URI & 5-OS official directory`);
 
     // ── TEST 13: New User Zero-Traffic & Progress Bar Isolation + Duplicate UUID Guard ──
     // Note: `user` (سردبیر اصلی) already accrued real bytes from VLESS + Trojan E2E tunnels in Tests 4–5!
@@ -799,7 +810,7 @@ async function main() {
       dotVisible: !document.getElementById('gh-upd-dot')?.hidden,
     }));
     assert.equal(ghUi.repoHref, 'https://github.com/AralDev/Aral');
-    assert.equal(ghUi.remVer, 'V2.6.0', `Expected V2.6.0 from mock GitHub release, got: ${ghUi.remVer}`);
+    assert.equal(ghUi.remVer, 'V3.1.0', `Expected V3.1.0 from mock GitHub release, got: ${ghUi.remVer}`);
     assert.equal(ghUi.dotVisible, true, 'Update NEW indicator must appear when newer version exists on GitHub');
 
     await page.click('#btn-gh-apply');

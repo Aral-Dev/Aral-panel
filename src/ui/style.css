@@ -173,14 +173,20 @@ html[data-theme="dark"] .grain{mix-blend-mode:screen;opacity:.13}
   line-height:0;
 }
 .mast-logo{
-  width:min(72vw,392px);height:auto;display:inline-block;
+  width:min(86vw,520px);height:auto;display:inline-block;
   border:1px solid var(--line-gold);
   outline:1px solid var(--gold-dim);outline-offset:5px;
   box-shadow:0 12px 42px rgba(0,0,0,.42),0 0 30px rgba(212,175,55,.16);
 }
 html[data-theme="light"] .mast-logo,
 html:not([data-theme="dark"]) .mast-logo{box-shadow:0 12px 34px rgba(26,22,17,.28),0 0 26px rgba(201,162,39,.2)}
-.mast-logo-sm{width:min(62vw,296px)}
+.mast-logo-sm{width:min(74vw,420px)}
+/* Dual-emblem theming: obsidian & gold artwork for dark, graphite sketch for light */
+.mast-logo.logo-light{display:none}
+html[data-theme="light"] .mast-logo.logo-dark,
+html:not([data-theme="dark"]) .mast-logo.logo-dark{display:none}
+html[data-theme="light"] .mast-logo.logo-light,
+html:not([data-theme="dark"]) .mast-logo.logo-light{display:inline-block}
 
 .subline{
   display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 14px;
